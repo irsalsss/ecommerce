@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs, MetaFunction } from "@remix-run/node";
-import { json, redirect } from "@remix-run/node";
-import { Form, Link, useActionData, useNavigation } from "@remix-run/react";
+import { data, redirect } from "@remix-run/node";
+import { Form, Link, useActionData, useNavigation, useSubmit } from "@remix-run/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { motion } from "framer-motion";
@@ -10,6 +10,7 @@ import { Input } from "~/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { authenticator, getUser, createUser } from "~/lib/auth.server";
 import { registerSchema, type RegisterFormData } from "~/lib/validations/auth";
+import { useRef } from "react";
 
 export const meta: MetaFunction = () => {
   return [
@@ -23,7 +24,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (user) {
     return redirect("/");
   }
-  return json({});
+  return data(null, {});
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -32,7 +33,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   try {
     const validatedData = registerSchema.parse(data);
-    
+
     await createUser({
       email: validatedData.email,
       password: validatedData.password,
@@ -44,30 +45,54 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       successRedirect: "/",
     });
   } catch (error) {
-    return json(
-      { 
-        error: error instanceof Error ? error.message : "Registration failed",
-        fieldErrors: error instanceof Error && "issues" in error ? error.issues : null
-      },
-      { status: 400 }
-    );
+    // Handle validation errors from Zod
+    if (error && typeof error === "object" && "issues" in error) {
+      return {
+        status: 400,
+        error: "Please check your input and try again",
+        fieldErrors: (error as { issues: unknown[] }).issues,
+      };
+    }
+
+    // Handle other errors (including our beautified Prisma errors)
+    return {
+      status: 400,
+      error: error instanceof Error ? error.message : "Registration failed",
+      fieldErrors: null,
+    };
   }
 };
 
 export default function Register() {
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
+  const submit = useSubmit();
+  const formRef = useRef<HTMLFormElement>(null);
   const isSubmitting = navigation.state === "submitting";
 
   const {
     register,
     formState: { errors },
+    handleSubmit,
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
+    mode: "all",
   });
 
+  const onSubmit = (data: RegisterFormData) => {
+    if (formRef.current) {
+      const formData = new FormData();
+      formData.append("name", data.name);
+      formData.append("email", data.email);
+      formData.append("password", data.password);
+      formData.append("confirmPassword", data.confirmPassword);
+
+      submit(formData, { method: "post" });
+    }
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/50 p-4">
+    <div className="flex min-h-screen items-center justify-center bg-muted/50 p-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -77,12 +102,15 @@ export default function Register() {
         <Card>
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">Create account</CardTitle>
-            <CardDescription>
-              Sign up to start shopping with us
-            </CardDescription>
+            <CardDescription>Sign up to start shopping with us</CardDescription>
           </CardHeader>
           <CardContent>
-            <Form method="post" className="space-y-4">
+            <Form
+              ref={formRef}
+              method="post"
+              className="space-y-4"
+              onSubmit={handleSubmit(onSubmit)}
+            >
               <div className="space-y-2">
                 <label htmlFor="name" className="text-sm font-medium">
                   Full Name
@@ -92,11 +120,8 @@ export default function Register() {
                   type="text"
                   placeholder="Enter your full name"
                   {...register("name")}
-                  className={errors.name ? "border-destructive" : ""}
+                  errorMessage={errors.name?.message}
                 />
-                {errors.name && (
-                  <p className="text-sm text-destructive">{errors.name.message}</p>
-                )}
               </div>
 
               <div className="space-y-2">
@@ -108,11 +133,8 @@ export default function Register() {
                   type="email"
                   placeholder="Enter your email"
                   {...register("email")}
-                  className={errors.email ? "border-destructive" : ""}
+                  errorMessage={errors.email?.message}
                 />
-                {errors.email && (
-                  <p className="text-sm text-destructive">{errors.email.message}</p>
-                )}
               </div>
 
               <div className="space-y-2">
@@ -124,11 +146,8 @@ export default function Register() {
                   type="password"
                   placeholder="Create a password"
                   {...register("password")}
-                  className={errors.password ? "border-destructive" : ""}
+                  errorMessage={errors.password?.message}
                 />
-                {errors.password && (
-                  <p className="text-sm text-destructive">{errors.password.message}</p>
-                )}
               </div>
 
               <div className="space-y-2">
@@ -140,15 +159,12 @@ export default function Register() {
                   type="password"
                   placeholder="Confirm your password"
                   {...register("confirmPassword")}
-                  className={errors.confirmPassword ? "border-destructive" : ""}
+                  errorMessage={errors.confirmPassword?.message}
                 />
-                {errors.confirmPassword && (
-                  <p className="text-sm text-destructive">{errors.confirmPassword.message}</p>
-                )}
               </div>
 
               {actionData?.error && (
-                <div className="text-sm text-destructive text-center p-3 bg-destructive/10 rounded">
+                <div className="rounded bg-destructive/10 p-3 text-center text-sm text-destructive">
                   {actionData.error}
                 </div>
               )}

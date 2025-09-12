@@ -23,6 +23,13 @@ export class UsersController {
     return userWithoutPassword;
   }
 
+  @ApiOperation({ summary: 'Get all users' })
+  @ApiResponse({ status: 200, description: 'Users retrieved successfully' })
+  @Get()
+  async findAll() {
+    return this.usersService.findAll();
+  }
+
   @ApiOperation({ summary: 'Get user by ID' })
   @ApiResponse({ status: 200, description: 'User retrieved successfully' })
   @Get(':id')

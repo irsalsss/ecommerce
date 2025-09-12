@@ -1,6 +1,6 @@
 import { Authenticator } from "remix-auth";
 import { FormStrategy } from "remix-auth-form";
-import { createCookieSessionStorage } from "@remix-run/node";
+import { createCookieSessionStorage, data } from "@remix-run/node";
 import bcrypt from "bcryptjs";
 import { prisma } from "./db.server";
 import type { User } from "@prisma/client";
@@ -69,7 +69,7 @@ export const requireUser = async (request: Request): Promise<User> => {
 export const requireAdmin = async (request: Request): Promise<User> => {
   const user = await requireUser(request);
   if (user.role !== "ADMIN") {
-    throw new Response("Forbidden", { status: 403 });
+    data("Forbidden", { status: 403 });
   }
   return user;
 };
@@ -81,12 +81,24 @@ export const createUser = async (data: {
 }) => {
   const hashedPassword = await bcrypt.hash(data.password, 12);
   
-  return prisma.user.create({
-    data: {
-      ...data,
-      password: hashedPassword,
-    },
-  });
+  try {
+    return await prisma.user.create({
+      data: {
+        ...data,
+        password: hashedPassword,
+      },
+    });
+  } catch (error: unknown) {
+    // Handle Prisma unique constraint violation for email
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+      const prismaError = error as { code: string; meta?: { target?: string[] } };
+      if (prismaError.meta?.target?.includes('email')) {
+        throw new Error('Email address already exists. Please use a different email.');
+      }
+    }
+    
+    throw error;
+  }
 };
 
 export { sessionStorage };
