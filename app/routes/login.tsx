@@ -34,6 +34,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
     return data({ user });
   } catch (error) {
+    console.log('error::: ', error);
     return {
       status: 400,
       error: error instanceof Error ? error.message : "Invalid credentials",
