@@ -95,7 +95,7 @@ export function Header() {
       {/* Cart Sidebar */}
       {isOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="fixed inset-0 bg-black/20" onClick={toggleCart} />
+          <div role="button" tabIndex={0} className="fixed inset-0 bg-black/20" onClick={toggleCart} onKeyDown={toggleCart} />
           <div className="fixed right-0 top-0 h-full w-full max-w-sm bg-background p-6 shadow-lg">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">Shopping Cart</h2>

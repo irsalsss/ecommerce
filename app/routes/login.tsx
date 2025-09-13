@@ -9,7 +9,7 @@ import { useRef } from "react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
-import { authenticator, getUser } from "~/lib/auth.server";
+import { authenticator, sessionStorage } from "~/lib/auth.server";
 import { loginSchema, type LoginFormData } from "~/lib/validations/auth";
 
 export const meta: MetaFunction = () => {
@@ -20,21 +20,31 @@ export const meta: MetaFunction = () => {
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const user = await getUser(request);
+  const session = await sessionStorage.getSession(request.headers.get("cookie"));
+  const user = session.get("user");
+
   if (user) {
     return redirect("/");
   }
+
   return data({});
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   try {
-    const user = await authenticator.authenticate("form", request, {
-      successRedirect: "/",
+    const user = await authenticator.authenticate("form", request);
+    const session = await sessionStorage.getSession(
+      request.headers.get("cookie")
+    );
+
+    session.set("user", user);
+
+    return redirect("/", {
+      headers: {
+        "Set-Cookie": await sessionStorage.commitSession(session),
+      },
     });
-    return data({ user });
   } catch (error) {
-    console.log('error::: ', error);
     return {
       status: 400,
       error: error instanceof Error ? error.message : "Invalid credentials",
